@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Container, Paper, Typography, TextField, Button } from '@mui/material';
+import { Box, Container, Paper, Typography, TextField, Button, IconButton, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { Brightness4, Brightness7 } from '@mui/icons-material';
 import io from 'socket.io-client';
 
 const BACKEND_URL = 'https://chat-app-backend-ybjt.onrender.com';
@@ -10,6 +11,7 @@ const ChatContainer = styled(Paper)(({ theme }) => ({
   height: '80vh',
   display: 'flex',
   flexDirection: 'column',
+  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.background.paper,
 }));
 
 const MessagesContainer = styled(Box)(({ theme }) => ({
@@ -17,7 +19,7 @@ const MessagesContainer = styled(Box)(({ theme }) => ({
   overflow: 'auto',
   marginBottom: theme.spacing(2),
   padding: theme.spacing(2),
-  backgroundColor: theme.palette.grey[100],
+  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
   borderRadius: theme.shape.borderRadius,
 }));
 
@@ -31,21 +33,39 @@ const Message = styled(Box)(({ theme, isCurrentUser }) => ({
   justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
   marginBottom: theme.spacing(1),
   '& .content': {
-    backgroundColor: isCurrentUser ? theme.palette.primary.main : theme.palette.grey[300],
+    backgroundColor: isCurrentUser 
+      ? theme.palette.primary.main 
+      : theme.palette.mode === 'dark' 
+        ? theme.palette.grey[700] 
+        : theme.palette.grey[300],
     color: isCurrentUser ? theme.palette.primary.contrastText : 'inherit',
     padding: theme.spacing(1, 2),
     borderRadius: theme.shape.borderRadius,
     maxWidth: '70%',
+    position: 'relative',
+  },
+  '& .timestamp': {
+    fontSize: '0.75rem',
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
+    textAlign: isCurrentUser ? 'right' : 'left',
+  },
+  '& .read-receipt': {
+    fontSize: '0.75rem',
+    color: theme.palette.primary.main,
+    marginTop: theme.spacing(0.5),
+    textAlign: 'right',
   },
 }));
 
-const Chat = () => {
+const Chat = ({ theme, toggleTheme }) => {
   const [socket, setSocket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [username, setUsername] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [messageStatus, setMessageStatus] = useState({});
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -84,6 +104,27 @@ const Chat = () => {
 
     socket.on('message', (message) => {
       setMessages((prev) => [...prev, message]);
+      // Update message status
+      if (message.sender === username) {
+        setMessageStatus(prev => ({
+          ...prev,
+          [message.id]: 'sent'
+        }));
+      }
+    });
+
+    socket.on('messageReceived', (data) => {
+      setMessageStatus(prev => ({
+        ...prev,
+        [data.messageId]: 'received'
+      }));
+    });
+
+    socket.on('messageRead', (data) => {
+      setMessageStatus(prev => ({
+        ...prev,
+        [data.messageId]: 'read'
+      }));
     });
 
     socket.on('userList', (users) => {
@@ -110,11 +151,13 @@ const Chat = () => {
       socket.off('connect');
       socket.off('authenticated');
       socket.off('message');
+      socket.off('messageReceived');
+      socket.off('messageRead');
       socket.off('userList');
       socket.off('userJoined');
       socket.off('userLeft');
     };
-  }, [socket]);
+  }, [socket, username]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -126,20 +169,55 @@ const Chat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !isAuthenticated || !socket) return;
 
-    socket.emit('sendMessage', {
+    const messageId = Date.now().toString();
+    const message = {
+      id: messageId,
       text: newMessage,
       timestamp: new Date().toISOString(),
-    });
+      sender: username
+    };
+
+    socket.emit('sendMessage', message);
     setNewMessage('');
+    setMessageStatus(prev => ({
+      ...prev,
+      [messageId]: 'sending'
+    }));
+  };
+
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getReadReceipt = (messageId) => {
+    const status = messageStatus[messageId];
+    switch (status) {
+      case 'sending':
+        return 'Sending...';
+      case 'sent':
+        return '✓';
+      case 'received':
+        return '✓✓';
+      case 'read':
+        return '✓✓ Read';
+      default:
+        return '';
+    }
   };
 
   if (!isAuthenticated) {
     return (
       <Container maxWidth="sm" sx={{ mt: 4 }}>
         <Paper sx={{ p: 3 }}>
-          <Typography variant="h5" gutterBottom>
-            Join Chat
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5">Join Chat</Typography>
+            <Tooltip title="Toggle dark mode">
+              <IconButton onClick={toggleTheme} color="inherit">
+                {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+              </IconButton>
+            </Tooltip>
+          </Box>
           <form onSubmit={handleLogin}>
             <TextField
               fullWidth
@@ -167,11 +245,18 @@ const Chat = () => {
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <ChatContainer elevation={3}>
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between' }}>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">Chat Room</Typography>
-          <Typography variant="subtitle1">
-            Online Users: {onlineUsers.length}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="subtitle1">
+              Online Users: {onlineUsers.length}
+            </Typography>
+            <Tooltip title="Toggle dark mode">
+              <IconButton onClick={toggleTheme} color="inherit">
+                {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
         <MessagesContainer>
           {messages.map((message, index) => (
@@ -192,6 +277,14 @@ const Chat = () => {
                     <Typography variant="body1">
                       {message.text}
                     </Typography>
+                    <Typography variant="caption" className="timestamp">
+                      {formatTimestamp(message.timestamp)}
+                    </Typography>
+                    {message.sender === username && (
+                      <Typography variant="caption" className="read-receipt">
+                        {getReadReceipt(message.id)}
+                      </Typography>
+                    )}
                   </>
                 )}
               </Box>
