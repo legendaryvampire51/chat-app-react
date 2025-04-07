@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Container, Paper, Typography, TextField, Button, List } from '@mui/material';
+import { Box, Container, Paper, Typography, TextField, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import io from 'socket.io-client';
 
@@ -79,7 +79,7 @@ const Chat = () => {
 
     socket.on('authenticated', (data) => {
       setIsAuthenticated(true);
-      setOnlineUsers(data.users);
+      setOnlineUsers(data.users || []);
     });
 
     socket.on('message', (message) => {
@@ -87,11 +87,11 @@ const Chat = () => {
     });
 
     socket.on('userList', (users) => {
-      setOnlineUsers(users);
+      setOnlineUsers(users || []);
     });
 
     socket.on('userJoined', (data) => {
-      setOnlineUsers(data.users);
+      setOnlineUsers(data.users || []);
       setMessages((prev) => [
         ...prev,
         { type: 'system', text: `${data.username} joined the chat` },
@@ -99,7 +99,7 @@ const Chat = () => {
     });
 
     socket.on('userLeft', (data) => {
-      setOnlineUsers(data.users);
+      setOnlineUsers(data.users || []);
       setMessages((prev) => [
         ...prev,
         { type: 'system', text: `${data.username} left the chat` },
@@ -119,12 +119,12 @@ const Chat = () => {
   const handleLogin = (e) => {
     e.preventDefault();
     if (!username.trim()) return;
-    socket.emit('authenticate', { username });
+    socket?.emit('authenticate', { username });
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !isAuthenticated) return;
+    if (!newMessage.trim() || !isAuthenticated || !socket) return;
 
     socket.emit('sendMessage', {
       text: newMessage,
