@@ -28,6 +28,19 @@ const MessageInput = styled(Box)(({ theme }) => ({
   gap: theme.spacing(1),
 }));
 
+const SystemMessage = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'center',
+  marginBottom: theme.spacing(1),
+  '& .content': {
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(0.5, 2),
+    borderRadius: theme.shape.borderRadius,
+    fontSize: '0.875rem',
+  }
+}));
+
 const Message = styled(Box)(({ theme, isCurrentUser }) => ({
   display: 'flex',
   justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
@@ -44,17 +57,28 @@ const Message = styled(Box)(({ theme, isCurrentUser }) => ({
     maxWidth: '70%',
     position: 'relative',
   },
+  '& .message-header': {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing(0.5),
+  },
+  '& .message-footer': {
+    display: 'flex',
+    justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+    marginTop: theme.spacing(0.5),
+  },
   '& .timestamp': {
     fontSize: '0.75rem',
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-    textAlign: isCurrentUser ? 'right' : 'left',
   },
   '& .read-receipt': {
     fontSize: '0.75rem',
     color: theme.palette.primary.main,
-    marginTop: theme.spacing(0.5),
-    textAlign: 'right',
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(0.5),
   },
 }));
 
@@ -260,23 +284,27 @@ const Chat = ({ theme, toggleTheme }) => {
         </Box>
         <MessagesContainer>
           {messages.map((message, index) => (
-            <Message
-              key={index}
-              isCurrentUser={message.sender === username}
-            >
-              <Box className="content">
-                {message.type === 'system' ? (
-                  <Typography variant="body2" color="textSecondary">
-                    {message.text}
-                  </Typography>
-                ) : (
-                  <>
+            message.type === 'system' ? (
+              <SystemMessage key={index}>
+                <Box className="content">
+                  {message.text}
+                </Box>
+              </SystemMessage>
+            ) : (
+              <Message
+                key={index}
+                isCurrentUser={message.sender === username}
+              >
+                <Box className="content">
+                  <div className="message-header">
                     <Typography variant="caption" color="inherit">
                       {message.sender}
                     </Typography>
-                    <Typography variant="body1">
-                      {message.text}
-                    </Typography>
+                  </div>
+                  <Typography variant="body1">
+                    {message.text}
+                  </Typography>
+                  <div className="message-footer">
                     <Typography variant="caption" className="timestamp">
                       {formatTimestamp(message.timestamp)}
                     </Typography>
@@ -285,10 +313,10 @@ const Chat = ({ theme, toggleTheme }) => {
                         {getReadReceipt(message.id)}
                       </Typography>
                     )}
-                  </>
-                )}
-              </Box>
-            </Message>
+                  </div>
+                </Box>
+              </Message>
+            )
           ))}
           <div ref={messagesEndRef} />
         </MessagesContainer>
